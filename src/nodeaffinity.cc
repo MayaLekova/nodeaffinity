@@ -74,16 +74,22 @@ if (ret != -1)
   if (pid == 0) {
     hProc = GetCurrentProcess();
   } else {
-    hProc = OpenProcess(DWORD(pid), TRUE, PROCESS_DUP_HANDLE);
+    hProc = OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, TRUE, DWORD(pid));
   }
+
   DuplicateHandle(hProc, hProc, hProc,
                   &hDupProc, 0, FALSE, DUPLICATE_SAME_ACCESS);
 
   // Get the old affinity mask
-  GetProcessAffinityMask(hDupProc,
+  BOOL bRet = GetProcessAffinityMask(hProc,
                          &dwpProcAffinityMask, &dwpSysAffinityMask);
 
-  ulCpuMask = dwpProcAffinityMask;
+  if (bRet == false)
+  {
+    ulCpuMask = -1;
+  } else {
+    ulCpuMask = dwpProcAffinityMask;
+  }
 
   CloseHandle(hDupProc);
 #endif
@@ -144,7 +150,7 @@ void setAffinity(const FunctionCallbackInfo<Value>& args) {
   if (pid == 0) {
     hProc = GetCurrentProcess();
   } else {
-    hProc = OpenProcess(DWORD(pid), TRUE, PROCESS_SET_INFORMATION);
+    hProc = OpenProcess(PROCESS_SET_INFORMATION, TRUE, DWORD(pid));
   }
 
   // Get the old affinity mask

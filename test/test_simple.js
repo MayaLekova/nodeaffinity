@@ -2,7 +2,6 @@
 
 const nc = require('./../build/Release/nodeaffinity');
 const assert = require('assert');
-const { spawn } = require('child_process');
 
 function getMask(affinity) {
   if (affinity > 1) {
@@ -31,6 +30,5 @@ function checkChildProcess(pid) {
 (function() {
   checkOwnProcess();
 
-  const child = spawn('echo');
-  checkChildProcess(child.pid);
+  checkChildProcess(process.pid);
 }());
