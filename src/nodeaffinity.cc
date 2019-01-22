@@ -46,7 +46,7 @@ void getAffinity(const FunctionCallbackInfo<Value>& args) {
 if (ret != -1)
 {
   ulCpuMask = 0;
-  for ( int i = 0; i < sizeof(cpu_set_t); i++ )
+  for ( size_t i = 0; i < sizeof(cpu_set_t); i++ )
   {
     if ( CPU_ISSET_S(i, sizeof(cpu_set_t), &curMask) )
     {
@@ -95,7 +95,7 @@ void setAffinity(const FunctionCallbackInfo<Value>& args) {
   cpu_set_t newMask;
   CPU_ZERO(&newMask);
 
-  for ( int i = 0; i < sizeof(cpu_set_t); i++ )
+  for ( size_t i = 0; i < sizeof(cpu_set_t); i++ )
   {
     if (ulCpuMask & 1<<i)
     {
