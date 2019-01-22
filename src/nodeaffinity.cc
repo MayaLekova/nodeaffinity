@@ -29,14 +29,24 @@ void getAffinity(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = Isolate::GetCurrent();
   HandleScope scope(isolate);
 
-  if (args.Length() > 0) {
+  if (args.Length() > 1) {
     isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Invalid number of arguments")));
   }
 
   long ulCpuMask = -1;
 
+  // Parse optional process ID
+  int pid = 0;
+  if (args.Length() == 1) {
+    if (!args[0]->IsNumber()) {
+      isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "PID must be a number")));
+    } else {
+      pid = args[0]->NumberValue();
+    }
+  }
+
 #if V8_OS_POSIX && !V8_OS_MACOSX
-  pid_t p = 0;
+  pid_t p = pid;
   int ret;
   cpu_set_t curMask;
   CPU_ZERO(&curMask);
@@ -57,21 +67,25 @@ if (ret != -1)
 #endif
 
 #if V8_OS_WIN
-  HANDLE hCurrentProc, hDupCurrentProc;
+  HANDLE hProc, hDupProc;
   DWORD_PTR dwpSysAffinityMask, dwpProcAffinityMask;
 
-  // Obtain a usable handle of the current process
-  hCurrentProc = GetCurrentProcess();
-  DuplicateHandle(hCurrentProc, hCurrentProc, hCurrentProc,
-                  &hDupCurrentProc, 0, FALSE, DUPLICATE_SAME_ACCESS);
+  // Obtain a usable handle of the required process
+  if (pid == 0) {
+    hProc = GetCurrentProcess();
+  } else {
+    hProc = OpenProcess(DWORD(pid), TRUE, PROCESS_DUP_HANDLE);
+  }
+  DuplicateHandle(hProc, hProc, hProc,
+                  &hDupProc, 0, FALSE, DUPLICATE_SAME_ACCESS);
 
   // Get the old affinity mask
-  GetProcessAffinityMask(hDupCurrentProc,
+  GetProcessAffinityMask(hDupProc,
                          &dwpProcAffinityMask, &dwpSysAffinityMask);
 
   ulCpuMask = dwpProcAffinityMask;
 
-  CloseHandle(hDupCurrentProc);
+  CloseHandle(hDupProc);
 #endif
 
   Local<Number> num = Number::New(isolate, ulCpuMask);
@@ -83,14 +97,25 @@ void setAffinity(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = Isolate::GetCurrent();
   HandleScope scope(isolate);
 
-  if (args.Length() != 1 && !args[0]->IsNumber()) {
+  if (args.Length() < 1 || (args.Length() > 2 || !args[0]->IsNumber())) {
     isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "Invalid argument")));
   }
 
   long ulCpuMask = args[0]->NumberValue();
 
+  // Parse optional process ID
+  int pid = 0;
+  if (args.Length() >= 2) {
+    if (!args[1]->IsNumber()) {
+      isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, "PID must be a number")));
+    } else {
+      pid = args[1]->NumberValue();
+    }
+  }
+
+
 #if V8_OS_POSIX && !V8_OS_MACOSX
-  pid_t p = 0;
+  pid_t p = pid;
   int ret;
   cpu_set_t newMask;
   CPU_ZERO(&newMask);
@@ -112,20 +137,24 @@ void setAffinity(const FunctionCallbackInfo<Value>& args) {
 #endif
 
 #if V8_OS_WIN
-  HANDLE hCurrentProc;
+  HANDLE hProc;
   DWORD_PTR dwpProcAffinityMask = ulCpuMask;
 
-  // Obtain a usable handle of the current process
-  hCurrentProc = GetCurrentProcess();
+  // Obtain a usable handle of the desired process
+  if (pid == 0) {
+    hProc = GetCurrentProcess();
+  } else {
+    hProc = OpenProcess(DWORD(pid), TRUE, PROCESS_SET_INFORMATION);
+  }
 
   // Get the old affinity mask
-  BOOL bRet = SetProcessAffinityMask(hCurrentProc, dwpProcAffinityMask);
+  BOOL bRet = SetProcessAffinityMask(hProc, dwpProcAffinityMask);
   if (bRet == false)
   {
     ulCpuMask = -1;
   }
 
-  CloseHandle(hCurrentProc);
+  CloseHandle(hProc);
 #endif
 
   Local<Number> num = Number::New(isolate, ulCpuMask);
